@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from windrose import WindroseAxes
 from windrose import WindAxes
 import numpy as np
+from scipy.integrate import trapz
 
 
 def rot_aws(wd):
@@ -85,7 +86,7 @@ def power_law(z, u_ref, z_ref, alpha):
     return u
 
 
-def get_power_output(cp, d, u_0, rho=1.3, cut_in=3, rated=6, cut_out=25):
+def get_power_output(cp, d, u_0, rho=1.3, cut_in=3, rated=10, cut_out=25):
     """
     Estimate of power output from wind
 
@@ -114,13 +115,12 @@ def get_power_output(cp, d, u_0, rho=1.3, cut_in=3, rated=6, cut_out=25):
     # Estimate the Rotor Area from rotor diameter
     A = np.pi*(d/2)**2
 
-    P = 0.5 * cp * A * rho * u_0 ** 3 / 1000
-
     if u_0 < cut_in or u_0 >= cut_out:
         P = 0
     elif rated < u_0 < cut_out:
-        0.5 * cp * A * rho * rated **3/1000
-
+        P = 0.5 * cp * A * rho * rated **3/1000
+    else:
+        P = 0.5 * cp * A * rho * u_0 ** 3 / 1000
     return P
 
 
@@ -199,9 +199,23 @@ s_df['wspd 120 m'] = s_df.apply(lambda row: power_law(z, row['Horizontal wind sp
 d = 90 #m
 Cp = 0.35
 s_df['Power'] = s_df.apply(lambda row: get_power_output(Cp, d, row['wspd 120 m']), axis=1)
+s_df['Power d=80'] = s_df.apply(lambda row: get_power_output(Cp, 80, row['wspd 120 m']), axis=1)
+s_df['Power d=100'] = s_df.apply(lambda row: get_power_output(Cp, 100, row['wspd 120 m']), axis=1)
+s_df['Rated Power'] = 1447
 
-# s_df['Max power'] = s_df['Power']*.59
+CF = 100*trapz(s_df['Power'].loc['2019-11-07 06:00:00':'2019-11-11 09:00:00'])/trapz(s_df['Rated Power'].loc['2019-11-07 06:00:00':'2019-11-11 09:00:00'])
 
+# Capacity factor for comparison of diameters
+CF_90 = 100*trapz(s_df['Power'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])/trapz(s_df['Rated Power'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])
+CF_80 = 100*trapz(s_df['Power d=80'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])/trapz(s_df['Rated Power'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])
+CF_100 = 100*trapz(s_df['Power d=100'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])/trapz(s_df['Rated Power'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])
+
+# Energy produced:
+# Divide by 60 to get from kWmin to kWh
+en = trapz(s_df['Power'].loc['2019-11-07 06:00:00':'2019-11-11 09:00:00'])/60
+en90 = trapz(s_df['Power'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])/60
+en80 = trapz(s_df['Power d=80'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])/60
+en100 = trapz(s_df['Power d=100'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'])/60
 
 # # Compare sonic and aws u and v wind
 # ax = plt.gca()
@@ -236,8 +250,18 @@ plt.ylabel('Wind speed (m/s)')
 plt.show()
 
 # Plot of available power in wind
+
 ax = plt.gca()
 s_df['Power'].loc['2019-11-07 06:00:00':'2019-11-11 09:00:00'].plot(kind='line', ax=ax)
+plt.title('Sonic Anemometer: Power Output (kW)')
+plt.ylabel('Power (kW)')
+plt.legend(loc='best')
+plt.show()
+
+ax = plt.gca()
+s_df['Power'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'].plot(kind='line', ax=ax, label='d = 90 m')
+s_df['Power d=80'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'].plot(kind='line', ax=ax, label='d = 80 m')
+s_df['Power d=100'].loc['2019-11-08 12:00:00':'2019-11-08 15:00:00'].plot(kind='line', ax=ax, label='d = 100 m')
 plt.title('Sonic Anemometer: Power Output (kW)')
 plt.ylabel('Power (kW)')
 plt.legend(loc='best')
@@ -257,6 +281,13 @@ s_df['wspd 120 m'].hist(ax=ax3, density=True)
 plt.title('Sonic Anemometer: Histogram of Wind Speeds at 120 m')
 plt.ylabel('Probability')
 plt.xlabel('Wind speed (m/s)')
+plt.show()
+
+ax1 = plt.gca()
+s_df['u'].plot(kind='line', ax=ax1, label='U')
+s_df['v'].plot(kind='line', ax=ax1, label='V')
+s_df['Z Wind Speed (m/s)'].plot(kind='line', ax=ax1, label='W')
+plt.legend(loc='best')
 plt.show()
 
 # Scatter plot of wind speed

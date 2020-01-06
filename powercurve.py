@@ -47,9 +47,15 @@ for d in np.arange(70, 110, 5):
     Cp = 0.35
     A = 1 / 4 * np.pi * d ** 2
     P = 0.5*A*rho*V**3*Cp/1000
+    #cut in
+    P[V < cut_in] = 0
+    # cut-out speed
+    P[V >= cut_out] = 0
+    # rated speed
+    P[(V > rated) & (V < 25)] = 0.5 * Cp * A * rho * rated ** 3/1000
     plt.plot(V, P, label=round(d, 2))
 
-plt.title('Power curve for different rotor diameters')
+plt.title('Power curve for different rotor diameters. Cp=0.35')
 plt.ylabel('Power (kW)')
 plt.xlabel('Wind speed (m/s)')
 plt.legend()
